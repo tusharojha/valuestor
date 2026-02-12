@@ -7,6 +7,7 @@ import {
   type Address,
   parseEther,
   formatEther,
+  decodeEventLog,
 } from 'viem';
 import { base } from 'viem/chains';
 import { privateKeyToAccount } from 'viem/accounts';
@@ -109,7 +110,7 @@ export class RobinPumpClient {
     const logs = receipt.logs;
     for (const log of logs) {
       try {
-        const decoded = this.publicClient.decodeEventLog({
+        const decoded = decodeEventLog({
           abi: RobinPumpFactoryABI,
           eventName: 'TokenCreated',
           data: log.data,
@@ -181,7 +182,7 @@ export class RobinPumpClient {
       },
       onLogs: (logs) => {
         for (const log of logs) {
-          const decoded = this.publicClient.decodeEventLog({
+          const decoded = decodeEventLog({
             abi: RobinPumpFactoryABI,
             eventName: 'TokenCreated',
             data: log.data,
@@ -219,7 +220,7 @@ export class RobinPumpClient {
       },
       onLogs: (logs) => {
         for (const log of logs) {
-          const decoded = this.publicClient.decodeEventLog({
+          const decoded = decodeEventLog({
             abi: RobinPumpFactoryABI,
             eventName: 'TokenTraded',
             data: log.data,
@@ -256,7 +257,7 @@ export class RobinPumpClient {
       },
       onLogs: (logs) => {
         for (const log of logs) {
-          const decoded = this.publicClient.decodeEventLog({
+          const decoded = decodeEventLog({
             abi: RobinPumpFactoryABI,
             eventName: 'TokenGraduated',
             data: log.data,

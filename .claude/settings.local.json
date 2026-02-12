@@ -27,7 +27,13 @@
       "Bash(npm install:*)",
       "Bash(grep:*)",
       "Bash(xargs:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git remote add:*)",
+      "Bash(git branch:*)",
+      "Bash(git push:*)",
+      "Bash(vercel:*)",
+      "Bash(npm run build:*)"
     ]
   }
 }
