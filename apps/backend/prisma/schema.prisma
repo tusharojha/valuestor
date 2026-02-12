@@ -1,0 +1,242 @@
+// Prisma schema for Valuestor
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// User & Authentication
+// ============================================================================
+
+model User {
+  id        String   @id @default(cuid())
+  address   String   @unique // Wallet address
+  nonce     String   @default(cuid()) // For signature verification
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  valuestor Valuestor?
+  sessions  Session[]
+
+  @@index([address])
+}
+
+model Session {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+}
+
+// ============================================================================
+// Valuestor (Investor Profile)
+// ============================================================================
+
+model Valuestor {
+  id      String  @id @default(cuid())
+  userId  String  @unique
+  address String  @unique
+  isActive Boolean @default(true)
+
+  // Investment Values (stored as JSON)
+  riskTolerance          String  // 'conservative' | 'moderate' | 'aggressive'
+  maxInvestmentPerToken  Float
+  maxPortfolioAllocation Float
+  themes                 String[] // Array of themes
+  tradingStyle           String  // 'holder' | 'swing_trader' | 'day_trader'
+  autoTrade              Boolean @default(false)
+
+  // Risk Filters
+  minLiquidityUSD        Float
+  minCreatorReputation   Int
+  avoidHighConcentration Boolean
+
+  // AI Guidance Settings
+  aiEnabled              Boolean @default(true)
+  aiAggressiveness       Int     @default(50)
+  requireConfirmation    Boolean @default(true)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user      User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  positions Position[]
+  trades    Trade[]
+  decisions TradeDecision[]
+
+  @@index([address])
+  @@index([isActive])
+}
+
+// ============================================================================
+// Tokens
+// ============================================================================
+
+model Token {
+  address     String   @id
+  name        String
+  symbol      String
+  description String?
+  uri         String
+  creator     String
+  category    String?
+  tags        String[]
+
+  // Bonding Curve Data (updated periodically)
+  currentPrice  String?
+  totalSupply   String?
+  reserveETH    String?
+  marketCap     String?
+  liquidityUSD  Float?
+  graduated     Boolean @default(false)
+
+  // Metadata
+  createdAt     DateTime
+  lastUpdatedAt DateTime @updatedAt
+
+  positions Position[]
+  trades    Trade[]
+  decisions TradeDecision[]
+  analyses  TokenAnalysis[]
+
+  @@index([creator])
+  @@index([category])
+  @@index([graduated])
+  @@index([createdAt])
+}
+
+// ============================================================================
+// Token Analysis & Risk Scoring
+// ============================================================================
+
+model TokenAnalysis {
+  id        String   @id @default(cuid())
+  tokenAddress String
+
+  riskScore              Int
+  riskFlags              String[]
+  holderCount            Int?
+  topHolderConcentration Float?
+  creatorReputation      Int?
+  creatorRugHistory      Boolean @default(false)
+
+  analyzedAt DateTime @default(now())
+
+  token Token @relation(fields: [tokenAddress], references: [address], onDelete: Cascade)
+
+  @@index([tokenAddress])
+  @@index([analyzedAt])
+}
+
+// ============================================================================
+// Trading
+// ============================================================================
+
+model TradeDecision {
+  id              String   @id @default(cuid())
+  valuestorId     String
+  tokenAddress    String
+
+  decision        String   // 'buy' | 'sell' | 'hold' | 'skip'
+  confidence      Int
+  alignmentScore  Int
+  reasoning       String   @db.Text
+
+  recommendedAmount String?
+  maxPrice          String?
+  minOutput         String?
+
+  analyzedAt DateTime @default(now())
+
+  valuestor Valuestor @relation(fields: [valuestorId], references: [id], onDelete: Cascade)
+  token     Token     @relation(fields: [tokenAddress], references: [address], onDelete: Cascade)
+  trade     Trade?
+
+  @@index([valuestorId])
+  @@index([tokenAddress])
+  @@index([decision])
+  @@index([analyzedAt])
+}
+
+model Trade {
+  id           String   @id @default(cuid())
+  valuestorId  String
+  tokenAddress String
+  decisionId   String?  @unique
+
+  type         String   // 'buy' | 'sell'
+  amount       String   // ETH for buy, token amount for sell
+  price        String
+  txHash       String?
+  status       String   // 'pending' | 'confirmed' | 'failed'
+  error        String?
+
+  createdAt   DateTime  @default(now())
+  confirmedAt DateTime?
+
+  valuestor Valuestor      @relation(fields: [valuestorId], references: [id], onDelete: Cascade)
+  token     Token          @relation(fields: [tokenAddress], references: [address], onDelete: Cascade)
+  decision  TradeDecision? @relation(fields: [decisionId], references: [id])
+
+  @@index([valuestorId])
+  @@index([tokenAddress])
+  @@index([status])
+  @@index([createdAt])
+  @@index([txHash])
+}
+
+// ============================================================================
+// Positions
+// ============================================================================
+
+model Position {
+  id           String @id @default(cuid())
+  valuestorId  String
+  tokenAddress String
+
+  amount            String  // Current token balance
+  averageBuyPrice   String
+  totalInvested     String  // Total ETH invested
+  currentValue      String?
+  unrealizedPnL     String?
+  unrealizedPnLPercent Float?
+
+  firstBuyAt   DateTime
+  lastUpdateAt DateTime @updatedAt
+
+  valuestor Valuestor @relation(fields: [valuestorId], references: [id], onDelete: Cascade)
+  token     Token     @relation(fields: [tokenAddress], references: [address], onDelete: Cascade)
+
+  @@unique([valuestorId, tokenAddress])
+  @@index([valuestorId])
+  @@index([tokenAddress])
+}
+
+// ============================================================================
+// Creator Reputation
+// ============================================================================
+
+model Creator {
+  address    String @id
+  reputation Int    @default(50)
+  rugCount   Int    @default(0)
+  tokenCount Int    @default(0)
+
+  totalVolume String @default("0")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([reputation])
+}
